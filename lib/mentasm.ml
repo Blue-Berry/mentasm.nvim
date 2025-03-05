@@ -1,5 +1,3 @@
-[@@@ocaml.warning "-32"]
-
 open Core
 open Async
 open Vcaml
@@ -66,19 +64,6 @@ let on_startup client =
   return state
 ;;
 
-(* This RPC is only used in tests to make them deterministic. It is not meant to be called
-   during regular use. *)
-let advance_time_for_test =
-  Vcaml_plugin.Persistent.Rpc.create_async
-    [%here]
-    ~name:"advance-time"
-    ~type_:Ocaml_from_nvim.Async.unit
-    ~f:(fun state ~client:_ ->
-      match state with
-      | Prod -> Deferred.Or_error.error_string "This RPC can only be called from tests."
-      | Test { time_source } ->
-        Time_source.advance_by_alarms_by time_source Time_ns.Span.second |> Deferred.ok)
-;;
 
 let command =
   Vcaml_plugin.Persistent.create
@@ -86,5 +71,5 @@ let command =
     ~description:"Opens a window that displays a clock"
     ~on_startup
     ~notify_fn:(`Lua "buffer_clock_setup")
-    [ advance_time_for_test ]
+    [  ]
 ;;

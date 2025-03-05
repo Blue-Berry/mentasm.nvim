@@ -1,0 +1,7 @@
+(executable
+ (public_name Mentasm)
+ (name main)
+ (libraries core_unix.command_unix core Mentasm)
+ (preprocess
+  (pps ppx_jane))
+ (promote (until-clean)))

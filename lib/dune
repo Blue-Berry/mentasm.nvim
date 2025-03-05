@@ -1,0 +1,5 @@
+(library
+ (name Mentasm)
+ (libraries async core core_unix.time_ns_unix vcaml vcaml.plugin)
+ (preprocess
+  (pps ppx_jane)))

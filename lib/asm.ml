@@ -148,25 +148,21 @@ let between_pos
 ;;
 
 let find_pos (pos : pos) map =
-  let rec loop (map:pos_map) =
+  let rec loop (map : pos_map) =
     match map with
     | [] -> None
     | a :: [] ->
-        let (a_line, a_col), low = a in
-        let line, col = pos in
-        if line > a_line then
-          Some (low, low)
-        else if line = a_line && col > a_col then
-          Some (low, low)
-        else
-          None
-    | a :: b :: map -> 
-        let a_pos, low = a in
-        let b_pos, high = b in
-        if between_pos pos ~low:a_pos ~high:b_pos then
-          Some (low, high)
-        else
-          loop ( b:: map)
+      let (a_line, a_col), low = a in
+      let line, col = pos in
+      if line > a_line
+      then Some (low, low)
+      else if line = a_line && col > a_col
+      then Some (low, low)
+      else None
+    | a :: b :: map ->
+      let a_pos, low = a in
+      let b_pos, high = b in
+      if between_pos pos ~low:a_pos ~high:b_pos then Some (low, high) else loop (b :: map)
   in
   loop map
 ;;

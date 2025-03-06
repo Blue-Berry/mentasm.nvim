@@ -1,7 +1,7 @@
 open Core
 open Async
 open Vcaml
-
+module Asm =Asm
 type state =
   | Prod
   | Test of { time_source : Time_source.Read_write.t }
@@ -64,12 +64,11 @@ let on_startup client =
   return state
 ;;
 
-
 let command =
   Vcaml_plugin.Persistent.create
     ~name:"buffer-clock"
     ~description:"Opens a window that displays a clock"
     ~on_startup
     ~notify_fn:(`Lua "buffer_clock_setup")
-    [  ]
+    []
 ;;

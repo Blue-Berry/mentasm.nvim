@@ -1,2 +1,6 @@
-(test
- (name test_Mentasm))
+(library
+ (name tests)
+ (libraries core Mentasm)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))

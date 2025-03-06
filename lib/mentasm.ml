@@ -25,7 +25,78 @@ let register_callback_to_auto_command
     (Ocaml_from_nvim.Callback.anon_rpc callback)
 ;;
 
+let asm =
+  {|
+.L103:
+	jmp	.L102
+	.cfi_endproc
+	.type camlLqtree.sexp_of_centroid_88,@function
+	.size camlLqtree.sexp_of_centroid_88,. - camlLqtree.sexp_of_centroid_88
+	.text
+	.align	16
+	.globl	camlLqtree.iter_4713
+camlLqtree.iter_4713:
+	.file	1	"list.ml"
+	.loc	1	110	13
+	.cfi_startproc
+	leaq	-344(%rsp), %r10
+	cmpq	40(%r14), %r10
+	jb	.L106
+.L107:
+	subq	$24, %rsp
+	.cfi_adjust_cfa_offset 24
+.L105:
+	testb	$1, %al
+	je	.L104
+	movl	$1, %eax
+	addq	$24, %rsp
+	.cfi_adjust_cfa_offset -24
+	ret
+	.cfi_adjust_cfa_offset 24
+	.align	4
+.L104:
+	movq	%rdi, 16(%rsp)
+	movq	%rbx, 8(%rsp)
+	movq	%rax, (%rsp)
+	.loc	1	112	4
+	movq	(%rax), %rax
+	.file	2	"lqtree/lqtree.ml"
+	.loc	2	273	38
+	movq	8(%rax), %rdi
+	.loc	2	273	30
+	subq	$24, %r15
+	cmpq	(%r14), %r15
+	jb	.L108
+.L110:
+  |}
+;;
 let callback buffer ~run_in_background:_ ~client =
+  let open Deferred.Or_error.Let_syntax in
+  let hl_group : string = "Search" in
+  let start_inclusive = Position.{ row = 0; col = 0 } in
+  let end_exclusive = Position.{ row = 10; col = 0 } in
+  let buffer = Buffer.Or_current.Id buffer in
+  let%bind namespace= Namespace.create [%here] client ~name:"mentasm" () in
+  let%bind _ =
+  Buffer.Untested.create_extmark
+    [%here]
+    client
+    buffer
+    ~namespace
+    ~start_inclusive
+    ~end_exclusive
+    ~hl_group
+    ~strict:false
+    ()
+  in
+  return ()
+
+let set_buffer_asm buffer client =
+  let file_map, lines = Asm.filter_file_direcs (asm |> String.split_lines) in
+  let chunks =
+    Asm.parse_lines file_map lines |> Asm.filter_chunks_file "lqtree.ml"
+  in
+  let lines, _ = Asm.lines_map_of_chunks chunks in
   Buffer.set_lines
     [%here]
     client
@@ -33,7 +104,7 @@ let callback buffer ~run_in_background:_ ~client =
     ~start:0
     ~end_:1
     ~strict_indexing:true
-    [ "Stuff" ]
+    lines
 ;;
 
 let on_startup client =
@@ -54,8 +125,8 @@ let on_startup client =
       let%bind original_window = Nvim.get_current_win [%here] client in
       let%bind () = Command.exec [%here] client "vsplit" in
       let%bind () = Nvim.set_current_buf [%here] client buffer in
-      (* let%bind () = Window.set_height [%here] client Current ~height:1 in *)
-      (* let%bind () = Window.Option.set [%here] client Current Winfixheight true in *)
+      let%bind () = set_buffer_asm buffer client in
+      let%bind () = Buffer.Option.set [%here] client (Id buffer) Readonly true in
       let%bind () = Nvim.set_current_win [%here] client original_window in
       return buffer)
   in

@@ -126,3 +126,51 @@ let%expect_test "asm_parse_lines" =
        ("\tsubq\t$24, %r15" "\tcmpq\t(%r14), %r15" "\tjb\t.L108" .L110: "  "))))
     |}]
 ;;
+
+let%expect_test "amp of chunks" =
+    let file_map, lines = Mentasm.Asm.filter_file_direcs (asm |> String.split_lines) in
+  let chunks = Mentasm.Asm.parse_lines file_map lines |> Mentasm.Asm.filter_chunks_file "lqtree.ml"  in
+  let lines, map =Mentasm.Asm.lines_map_of_chunks chunks in
+  printf "%s" (String.concat ~sep:"\n" lines);
+  printf "%s" (Sexp.to_string_hum (Mentasm.Asm.sexp_of_pos_map map ));
+  [%expect {|
+    movq	8(%rax), %rdi
+    subq	$24, %r15
+    cmpq	(%r14), %r15
+    jb	.L108
+    .L110:
+      (((273 30) 1) ((273 38) 0))
+    |}];
+    let file_map, lines = Mentasm.Asm.filter_file_direcs (asm |> String.split_lines) in
+  let chunks = Mentasm.Asm.parse_lines file_map lines |> Mentasm.Asm.filter_chunks_file "list.ml"  in
+  let lines, map =Mentasm.Asm.lines_map_of_chunks chunks in
+  printf "%s" (String.concat ~sep:"\n" lines);
+  Out_channel.newline stdout;
+  printf "%s" (Sexp.to_string_hum (Mentasm.Asm.sexp_of_pos_map (map |> Mentasm.Asm.sort_pos_map) ));
+  [%expect {|
+    .cfi_startproc
+    leaq	-344(%rsp), %r10
+    cmpq	40(%r14), %r10
+    jb	.L106
+    .L107:
+    subq	$24, %rsp
+    .cfi_adjust_cfa_offset 24
+    .L105:
+    testb	$1, %al
+    je	.L104
+    movl	$1, %eax
+    addq	$24, %rsp
+    .cfi_adjust_cfa_offset -24
+    ret
+    .cfi_adjust_cfa_offset 24
+    .align	4
+    .L104:
+    movq	%rdi, 16(%rsp)
+    movq	%rbx, 8(%rsp)
+    movq	%rax, (%rsp)
+    movq	(%rax), %rax
+    (((110 13) 0) ((112 4) 20))
+    |}];
+   let start, stop = (Mentasm.Asm.sort_pos_map map |> Mentasm.Asm.find_pos (110, 0)) |> Option.value_exn in 
+   printf "%d %d" start stop;
+   [%expect {| 0 20 |}]

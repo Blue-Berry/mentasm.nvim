@@ -6917,8 +6917,17 @@ camlLqtree.frametable:
   |}
 ;;
 
-let callback buffer ~run_in_background:_ ~client ~original_window ~window ~pos_map =
+let callback buffer ~run_in_background:_ ~client ~original_window ~window ~pos_map ~state =
   let open Deferred.Or_error.Let_syntax in
+  let%bind cursor_pos =
+    Window.get_cursor [%here] client (Window.Or_current.Id original_window)
+  in
+  let cursor_pos : Asm.pos = cursor_pos.row, cursor_pos.col in
+  let end_, start =
+    match Asm.find_pos cursor_pos pos_map with
+    | None -> 0, 0
+    | Some (start, end_) -> start, end_
+  in
   (* Set the current line *)
   let%bind () =
     let%bind () = Nvim.set_current_win [%here] client window in
@@ -6927,25 +6936,17 @@ let callback buffer ~run_in_background:_ ~client ~original_window ~window ~pos_m
         [%here]
         client
         (Window.Or_current.Id window)
-        Position.One_indexed_row.{ row = 10; col = 0 }
+        Position.One_indexed_row.{ row = start + 1; col = 0 }
     in
     let%bind () = Nvim.set_current_win [%here] client original_window in
     return ()
   in
-  (* Highlight text *)
-  let%bind namespace = Namespace.create [%here] client ~name:"mentasm" () in
-  let hl_group : string = "Search" in
-  let original_window = Window.Or_current.Id original_window in
-  let%bind cursor_pos = Window.get_cursor [%here] client original_window in
-  let cursor_pos : Asm.pos = cursor_pos.row, cursor_pos.col in
-  let end_, start =
-    match Asm.find_pos cursor_pos pos_map with
-    | None -> 0, 0
-    | Some (start, end_) -> start, end_
-  in
   let%bind _ =
     Nvim.out_writeln [%here] client (sprintf "start: %d, end: %d" start end_)
   in
+  (* Highlight text *)
+  let%bind namespace = Namespace.create [%here] client ~name:"mentasm" () in
+  let hl_group : string = "Search" in
   let start_inclusive = Position.{ row = start; col = 0 } in
   let end_exclusive = Position.{ row = end_; col = 10 } in
   let buffer = Buffer.Or_current.Id buffer in

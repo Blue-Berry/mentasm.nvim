@@ -6917,61 +6917,58 @@ camlLqtree.frametable:
   |}
 ;;
 
-let callback buffer ~run_in_background:_ ~client ~original_window ~window ~pos_map ~state =
+let callback buffer ~run_in_background:_ ~client ~original_window ~window ~pos_map =
   let open Deferred.Or_error.Let_syntax in
   let%bind cursor_pos =
     Window.get_cursor [%here] client (Window.Or_current.Id original_window)
   in
   let cursor_pos : Asm.pos = cursor_pos.row, cursor_pos.col in
-  let end_, start =
-    match Asm.find_pos cursor_pos pos_map with
-    | None -> 0, 0
-    | Some (start, end_) -> start, end_
-  in
-  (* Set the current line *)
-  let%bind () =
-    let%bind () = Nvim.set_current_win [%here] client window in
+  (*   lookup cursor, if not found do nothing *)
+  match Asm.find_pos cursor_pos pos_map with
+  | None -> return ()
+  | Some (start, end_) ->
+    (* Set the current line *)
     let%bind () =
-      Window.set_cursor
+      let%bind () = Nvim.set_current_win [%here] client window in
+      let%bind () =
+        Window.set_cursor
+          [%here]
+          client
+          (Window.Or_current.Id window)
+          Position.One_indexed_row.{ row = start + 1; col = 0 }
+      in
+      let%bind () = Window.Option.set_for_current_buffer_in_window [%here] client (Window.Or_current.Id window) Window.Option.Per_buffer.Scrolloff 999 in
+      let%bind () = Nvim.set_current_win [%here] client original_window in
+      return ()
+    in
+    (* Highlight text *)
+    let%bind namespace = Namespace.create [%here] client ~name:"mentasm" () in
+    let hl_group : string = "Search" in
+    let start_inclusive = Position.{ row = start; col = 0 } in
+    let end_exclusive = Position.{ row = end_; col = 10 } in
+    let buffer = Buffer.Or_current.Id buffer in
+    let%bind () =
+      Buffer.Untested.clear_namespace
         [%here]
         client
-        (Window.Or_current.Id window)
-        Position.One_indexed_row.{ row = start + 1; col = 0 }
+        buffer
+        ~namespace
+        ~line_start:0
+        ~line_end:(-1)
     in
-    let%bind () = Nvim.set_current_win [%here] client original_window in
+    let%bind _ =
+      Buffer.Untested.create_extmark
+        [%here]
+        client
+        buffer
+        ~namespace
+        ~start_inclusive
+        ~end_exclusive
+        ~hl_group
+        ~strict:false
+        ()
+    in
     return ()
-  in
-  let%bind _ =
-    Nvim.out_writeln [%here] client (sprintf "start: %d, end: %d" start end_)
-  in
-  (* Highlight text *)
-  let%bind namespace = Namespace.create [%here] client ~name:"mentasm" () in
-  let hl_group : string = "Search" in
-  let start_inclusive = Position.{ row = start; col = 0 } in
-  let end_exclusive = Position.{ row = end_; col = 10 } in
-  let buffer = Buffer.Or_current.Id buffer in
-  let%bind () =
-    Buffer.Untested.clear_namespace
-      [%here]
-      client
-      buffer
-      ~namespace
-      ~line_start:0
-      ~line_end:(-1)
-  in
-  let%bind _ =
-    Buffer.Untested.create_extmark
-      [%here]
-      client
-      buffer
-      ~namespace
-      ~start_inclusive
-      ~end_exclusive
-      ~hl_group
-      ~strict:false
-      ()
-  in
-  return ()
 ;;
 
 let set_buffer_asm buffer client lines =

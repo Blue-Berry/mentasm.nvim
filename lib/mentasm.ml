@@ -6937,7 +6937,14 @@ let callback buffer ~run_in_background:_ ~client ~original_window ~window ~pos_m
           (Window.Or_current.Id window)
           Position.One_indexed_row.{ row = start + 1; col = 0 }
       in
-      let%bind () = Window.Option.set_for_current_buffer_in_window [%here] client (Window.Or_current.Id window) Window.Option.Per_buffer.Scrolloff 999 in
+      let%bind () =
+        Window.Option.set_for_current_buffer_in_window
+          [%here]
+          client
+          (Window.Or_current.Id window)
+          Window.Option.Per_buffer.Scrolloff
+          999
+      in
       let%bind () = Nvim.set_current_win [%here] client original_window in
       return ()
     in

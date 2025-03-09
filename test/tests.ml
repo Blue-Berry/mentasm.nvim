@@ -6895,7 +6895,8 @@ camlLqtree.frametable:
 let%expect_test "asm_filter_file_direcs" =
   let file_map, lines = Mentasm.Asm.filter_file_direcs (asm |> String.split_lines) in
   printf "%s" (Hashtbl.sexp_of_t Int.sexp_of_t String.sexp_of_t file_map |> Sexp.to_string);
-  [%expect {| ((1 list.ml)(2 lqtree/lqtree.ml)(3 src/sexp_conv.ml)(4 src/owl/maths/owl_maths.ml)(5 nbody/nbody.ml)(6 stdlib.ml)(7 camlinternalFormat.ml)(8 dynarray.ml)(9 runtime/ppx_module_timer_runtime.ml)(10 runtime-lib/benchmark_accumulator.ml)(11 runtime/current_file.ml)(12 src/sexp.ml)(13 src/info.ml)(14 src/error.ml)(15 runtime-lib/ppx_inline_test_lib.ml)) |}];
+  [%expect
+    {| ((1 list.ml)(2 lqtree/lqtree.ml)(3 src/sexp_conv.ml)(4 src/owl/maths/owl_maths.ml)(5 nbody/nbody.ml)(6 stdlib.ml)(7 camlinternalFormat.ml)(8 dynarray.ml)(9 runtime/ppx_module_timer_runtime.ml)(10 runtime-lib/benchmark_accumulator.ml)(11 runtime/current_file.ml)(12 src/sexp.ml)(13 src/info.ml)(14 src/error.ml)(15 runtime-lib/ppx_inline_test_lib.ml)) |}];
   printf "%s" (String.concat ~sep:"\n" lines);
   [%expect
     {|
@@ -19979,7 +19980,9 @@ let%expect_test "amp of chunks" =
      ((110 13) 0) ((112 4) 65) ((112 4) 64) ((112 4) 21) ((112 4) 20))
     |}];
   let start, stop =
-    Mentasm.Asm.sort_pos_map map |> Mentasm.Asm.find_pos (83, 16) |> Option.value ~default:(-1, -1)
+    Mentasm.Asm.sort_pos_map map
+    |> Mentasm.Asm.find_pos (83, 16)
+    |> Option.value ~default:(-1, -1)
   in
   printf "%d %d" start stop;
   [%expect {| 92 94 |}]

@@ -6983,6 +6983,16 @@ let set_buffer_asm buffer client lines =
   Buffer.set_lines [%here] client (Id buffer) ~start:0 ~end_:1 ~strict_indexing:true lines
 ;;
 
+let create_stop_command client =
+	let channel = Client.channel client in
+	Command.create
+	[%here]
+	client
+	()
+	~name:"MentasmStop"
+	~scope:`Global
+	(Viml [%string {| call rpcrequest(%{channel#Int}, "mentasm-stop") |}])
+
 let on_startup client =
   let open Deferred.Or_error.Let_syntax in
   let lines, file_map =
@@ -7015,6 +7025,7 @@ let on_startup client =
       let%bind () = Nvim.set_current_win [%here] client original_window in
       return (buffer, original_window, window))
   in
+  let%bind () = create_stop_command client in
   let%bind (_ : Autocmd.Id.t) =
     register_callback_to_auto_command
       client
@@ -7026,7 +7037,7 @@ let on_startup client =
 let stop =
 	Vcaml_plugin.Persistent.Rpc.create_async
 	[%here]
-	~name:"mentasm_stop"
+	~name:"mentasm-stop"
 	~type_:Ocaml_from_nvim.Async.unit
     ~f:(fun _ ~client:_ -> exit 0)
 

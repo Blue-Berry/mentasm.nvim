@@ -4,8 +4,9 @@ open Vcaml
 module Asm = Asm
 
 type state =
-  | Prod
-  | Test of { time_source : Time_source.Read_write.t }
+  { _start : int
+  ; _end : int
+  }
 
 let register_callback_to_auto_command
       client
@@ -6917,57 +6918,65 @@ camlLqtree.frametable:
   |}
 ;;
 
-let callback buffer ~run_in_background:_ ~client ~original_window ~window ~pos_map =
+let callback buffer ~run_in_background:_ ~client ~original_window ~window ~pos_map ~state =
   let open Deferred.Or_error.Let_syntax in
   let%bind cursor_pos =
     Window.get_cursor [%here] client (Window.Or_current.Id original_window)
   in
   let cursor_pos : Asm.pos = cursor_pos.row, cursor_pos.col in
   (*   lookup cursor, if not found do nothing *)
-  match Asm.find_pos cursor_pos pos_map with
-  | None -> return ()
-  | Some (start, end_) ->
-    (* Set the current line *)
+  let start, end_ =
+    match Asm.find_pos cursor_pos pos_map with
+    | None ->
+      let _start = !state._start in
+      let _end = !state._end in
+      _start, _end
+    | Some (end_, start) ->
+      state := { _start = start; _end = end_ };
+      start, end_
+  in
+  (* Set the current line *)
+  let%bind () =
+    let%bind () = Nvim.set_current_win [%here] client window in
     let%bind () =
-      let%bind () = Nvim.set_current_win [%here] client window in
-      let%bind () =
-        Window.set_cursor
-          [%here]
-          client
-          (Window.Or_current.Id window)
-          Position.One_indexed_row.{ row = start + 1; col = 0 }
-      in
-      let%bind () = Nvim.set_current_win [%here] client original_window in
-      return ()
-    in
-    (* Highlight text *)
-    let%bind namespace = Namespace.create [%here] client ~name:"mentasm" () in
-    let hl_group : string = "Search" in
-    let start_inclusive = Position.{ row = start; col = 0 } in
-    let end_exclusive = Position.{ row = end_; col = 10 } in
-    let buffer = Buffer.Or_current.Id buffer in
-    let%bind () =
-      Buffer.Untested.clear_namespace
+      Window.set_cursor
         [%here]
         client
-        buffer
-        ~namespace
-        ~line_start:0
-        ~line_end:(-1)
+        (Window.Or_current.Id window)
+        Position.One_indexed_row.{ row = start + 1; col = 0 }
     in
-    let%bind _ =
-      Buffer.Untested.create_extmark
-        [%here]
-        client
-        buffer
-        ~namespace
-        ~start_inclusive
-        ~end_exclusive
-        ~hl_group
-        ~strict:false
-        ()
-    in
+    let%bind () = Nvim.set_current_win [%here] client original_window in
     return ()
+  in
+  (* Highlight text *)
+  let%bind namespace = Namespace.create [%here] client ~name:"mentasm" () in
+  let hl_group : string = "Search" in
+  let start_inclusive = Position.{ row = start; col = 0 } in
+  let end_exclusive = Position.{ row = end_; col = 20 } in
+  let buffer = Buffer.Or_current.Id buffer in
+  let%bind () =
+    Buffer.Untested.clear_namespace
+      [%here]
+      client
+      buffer
+      ~namespace
+      ~line_start:0
+      ~line_end:(-1)
+  in
+  let%bind () = Nvim.out_write [%here] client (sprintf "start: %d end:%d\n" start end_ ) in
+  let%bind _ =
+    Buffer.Untested.create_extmark
+      [%here]
+      client
+      buffer
+      ~namespace
+      ~start_inclusive
+      ~end_exclusive
+      ~hl_group
+      ~strict:false
+      ()
+  in
+  return ()
 ;;
 
 let set_buffer_asm buffer client lines =
@@ -6982,13 +6991,7 @@ let on_startup client =
     let lines, file_map = Asm.lines_map_of_chunks chunks in
     lines, file_map
   in
-  let state, _, _ =
-    match Option.is_some (Unix.getenv "INSIDE_DUNE") with
-    | false -> Prod, Time_source.wall_clock (), force Time_ns_unix.Zone.local
-    | true ->
-      let time_source = Time_source.create ~now:Time_ns.epoch () in
-      Test { time_source }, Time_source.read_only time_source, Time_ns_unix.Zone.utc
-  in
+  let state = ref { _start = 0; _end = 0 } in
   let%bind buffer, original_window, window =
     let%bind buffer = Buffer.create [%here] client ~listed:false ~scratch:true in
     let%bind () = Buffer.Option.set [%here] client (Id buffer) Bufhidden "wipe" in
@@ -7015,16 +7018,23 @@ let on_startup client =
   let%bind (_ : Autocmd.Id.t) =
     register_callback_to_auto_command
       client
-      (callback buffer ~original_window ~window ~pos_map:file_map)
+      (callback buffer ~original_window ~window ~pos_map:file_map ~state)
   in
   return state
 ;;
 
+let stop =
+	Vcaml_plugin.Persistent.Rpc.create_async
+	[%here]
+	~name:"mentasm_stop"
+	~type_:Ocaml_from_nvim.Async.unit
+    ~f:(fun _ ~client:_ -> exit 0)
+
 let command =
   Vcaml_plugin.Persistent.create
-    ~name:"buffer-clock"
-    ~description:"Opens a window that displays a clock"
+    ~name:"mentasm"
+    ~description:"Registers a callback that follows assembyl"
     ~on_startup
-    ~notify_fn:(`Lua "buffer_clock_setup")
-    []
+    ~notify_fn:(`Lua "mentasm_setup")
+    [stop]
 ;;

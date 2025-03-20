@@ -19981,7 +19981,7 @@ let%expect_test "amp of chunks" =
     |}];
   let start, stop =
     Mentasm.Asm.sort_pos_map map
-    |> Mentasm.Asm.find_pos (83, 16)
+    |> Mentasm.Asm.find_pos (84, 0)
     |> Option.value ~default:(-1, -1)
   in
   printf "%d %d" start stop;

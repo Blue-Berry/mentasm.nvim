@@ -6963,7 +6963,7 @@ let callback buffer ~run_in_background:_ ~client ~original_window ~window ~pos_m
       ~line_start:0
       ~line_end:(-1)
   in
-  let%bind () = Nvim.out_write [%here] client (sprintf "start: %d end:%d\n" start end_ ) in
+  let%bind () = Nvim.out_write [%here] client (sprintf "start: %d end:%d\n" start end_) in
   let%bind _ =
     Buffer.Untested.create_extmark
       [%here]
@@ -6983,15 +6983,24 @@ let set_buffer_asm buffer client lines =
   Buffer.set_lines [%here] client (Id buffer) ~start:0 ~end_:1 ~strict_indexing:true lines
 ;;
 
-let create_stop_command client =
-	let channel = Client.channel client in
-	Command.create
-	[%here]
-	client
-	()
-	~name:"MentasmStop"
-	~scope:`Global
-	(Viml [%string {| call rpcrequest(%{channel#Int}, "mentasm-stop") |}])
+let mentasm_stop_command client =
+  Command.create
+    [%here]
+    client
+    ~bar:true
+    ()
+    ~name:"MentasmStop"
+    ~scope:`Global
+    (Ocaml_from_nvim.Callback.anon_rpc (fun ~run_in_background ~client ->
+       run_in_background [%here] ~f:(fun (_ : [ `asynchronous ] Client.t) ->
+         (* This will only run after the RPC returns. *)
+         exit 0);
+       (*
+          TODO: Close window
+		remove autocommand
+       *)
+       Nvim.out_writeln [%here] client "Stopping"))
+;;
 
 let on_startup client =
   let open Deferred.Or_error.Let_syntax in
@@ -7025,7 +7034,7 @@ let on_startup client =
       let%bind () = Nvim.set_current_win [%here] client original_window in
       return (buffer, original_window, window))
   in
-  let%bind () = create_stop_command client in
+  let%bind () = mentasm_stop_command client in
   let%bind (_ : Autocmd.Id.t) =
     register_callback_to_auto_command
       client
@@ -7034,18 +7043,11 @@ let on_startup client =
   return state
 ;;
 
-let stop =
-	Vcaml_plugin.Persistent.Rpc.create_async
-	[%here]
-	~name:"mentasm-stop"
-	~type_:Ocaml_from_nvim.Async.unit
-    ~f:(fun _ ~client:_ -> exit 0)
-
 let command =
   Vcaml_plugin.Persistent.create
     ~name:"mentasm"
     ~description:"Registers a callback that follows assembyl"
     ~on_startup
     ~notify_fn:(`Lua "mentasm_setup")
-    [stop]
+    []
 ;;

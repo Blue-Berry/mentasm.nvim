@@ -6985,9 +6985,8 @@ let set_buffer_asm buffer client lines =
   Buffer.set_lines [%here] client (Id buffer) ~start:0 ~end_:1 ~strict_indexing:true lines
 ;;
 
-let mentasm_stop_command client auto_command_id =
+let mentasm_stop_command client auto_command_id window =
   let open Deferred.Or_error.Let_syntax in
-  let%bind () = Autocmd.delete [%here] client auto_command_id in
   Command.create
     [%here]
     client
@@ -6999,10 +6998,10 @@ let mentasm_stop_command client auto_command_id =
        run_in_background [%here] ~f:(fun (_ : [ `asynchronous ] Client.t) ->
          (* This will only run after the RPC returns. *)
          exit 0);
-       (*
-          TODO: Close window
-		remove autocommand
-       *)
+       let%bind () =
+         Window.close [%here] client window ~when_this_is_the_buffer's_last_window:Hide
+       in
+       let%bind () = Autocmd.delete [%here] client auto_command_id in
        Nvim.out_writeln [%here] client "Stopping"))
 ;;
 
@@ -7043,7 +7042,9 @@ let on_startup client =
       client
       (callback buffer ~original_window ~window ~pos_map:file_map ~state)
   in
-  let%bind () = mentasm_stop_command client auto_command_id in
+  let%bind () =
+    mentasm_stop_command client auto_command_id (Window.Or_current.Id window)
+  in
   return state
 ;;
 

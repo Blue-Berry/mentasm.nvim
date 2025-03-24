@@ -8,17 +8,19 @@ type state =
   ; _end : int
   }
 
+let autocmd_group_name = "mentasm"
+
 let register_callback_to_auto_command
       client
       (callback : run_in_background:_ -> client:'b Client.t -> unit Deferred.Or_error.t)
   =
   let open Deferred.Or_error.Let_syntax in
-  let%bind group = Autocmd.Group.create [%here] client "mentasm" in
+  let%bind group = Autocmd.Group.create [%here] client autocmd_group_name in
   let events = Nonempty_list.return Autocmd.Event.CursorMoved in
   Autocmd.create
     [%here]
     client
-    ~description:"test"
+    ~description:"MentasmSync"
     ~once:false
     ~group
     ~patterns_or_buffer:(Patterns [ "*" ])
@@ -6983,7 +6985,9 @@ let set_buffer_asm buffer client lines =
   Buffer.set_lines [%here] client (Id buffer) ~start:0 ~end_:1 ~strict_indexing:true lines
 ;;
 
-let mentasm_stop_command client =
+let mentasm_stop_command client auto_command_id =
+  let open Deferred.Or_error.Let_syntax in
+  let%bind () = Autocmd.delete [%here] client auto_command_id in
   Command.create
     [%here]
     client
@@ -7034,12 +7038,12 @@ let on_startup client =
       let%bind () = Nvim.set_current_win [%here] client original_window in
       return (buffer, original_window, window))
   in
-  let%bind () = mentasm_stop_command client in
-  let%bind (_ : Autocmd.Id.t) =
+  let%bind (auto_command_id : Autocmd.Id.t) =
     register_callback_to_auto_command
       client
       (callback buffer ~original_window ~window ~pos_map:file_map ~state)
   in
+  let%bind () = mentasm_stop_command client auto_command_id in
   return state
 ;;
 
